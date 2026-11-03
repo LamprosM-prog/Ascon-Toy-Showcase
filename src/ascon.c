@@ -45,7 +45,9 @@ static void print_bin(uint8_t v) {
 static void print_bits(unsigned v, int n) {
     for (int b = n - 1; b >= 0; b--) putchar('0' + ((v >> b) & 1));
 }
-
+static void print_xor(uint8_t a, uint8_t b) {
+    print_bin_hex(a); printf("  ^  "); print_bin_hex(b); printf("  =  "); print_bin_hex((uint8_t)(a ^ b)); printf("\n");
+}
 /* every column of the state is one 5-bit S-box input (x0 = most significant bit) */
 static void print_columns(const uint8_t in[5], const uint8_t out[5]) {
     printf("pS: the same S-box, column by column (x0..x4 read top to bottom)\n");
@@ -163,26 +165,35 @@ int main(void) {
     print_state("AD: none, domain separation (x4 ^= 1)", &s);
 
     /* ---------------- plaintext block 1: "hi" ---------------- */
+    uint8_t ks0 = s.x[0], ks1 = s.x[1];         /* the rate before the XOR is the keystream */
     s.x[0] ^= msg[0];  s.x[1] ^= msg[1];
     ct[0] = s.x[0];    ct[1] = s.x[1];          /* ciphertext = the new rate, read right here */
-    print_state("ENC block 1: after XOR of \"hi\" into x0, x1   (x0, x1 = ciphertext)", &s);
+    print_state("ENC block 1: after XOR of \"hi\" into x0, x1", &s);
+    printf("SQUEEZE (ciphertext): both bytes are read from the rate at this moment, before p^8\n");
+    printf("  byte 0 = x0 = keystream ^ 'h':  "); print_xor(ks0, msg[0]);
+    printf("  byte 1 = x1 = keystream ^ 'i':  "); print_xor(ks1, msg[1]);
+    printf("\n");
 
     ascon_p(&s, 8, SHOW_ROUNDS, 0);
     print_state("ENC block 1: after p^8", &s);
 
     /* ---------------- block 2: padding only (0x80 0x00), no ciphertext, no p^8 afterwards ---------------- */
     s.x[0] ^= 0x80;    s.x[1] ^= 0x00;
-    print_state("ENC block 2: after XOR of the padding block 80 00", &s);
+    print_state("ENC block 2: after XOR of the padding block 80 00   (nothing is squeezed here)", &s);
 
     /* ---------------- finalization ---------------- */
     s.x[2] ^= key[0];  s.x[3] ^= key[1];
     print_state("FINAL: after XOR of K into x2, x3", &s);
 
     ascon_p(&s, 12, SHOW_ROUNDS, 0);
-    print_state("FINAL: after p^12   (tag = x3, x4 XOR K)", &s);
+    print_state("FINAL: after p^12", &s);
 
     tag[0] = s.x[3] ^ key[0];
     tag[1] = s.x[4] ^ key[1];
+    printf("SQUEEZE (tag): x3 and x4 are read, each XORed with its own key byte\n");
+    printf("  byte 0 = x3 ^ k0:  "); print_xor(s.x[3], key[0]);
+    printf("  byte 1 = x4 ^ k1:  "); print_xor(s.x[4], key[1]);
+    printf("\n");
 
     printf("ciphertext : "); print_bin(ct[0]);  printf("  "); print_bin(ct[1]);  printf("   (%02x %02x)\n", ct[0], ct[1]);
     printf("tag        : "); print_bin(tag[0]); printf("  "); print_bin(tag[1]); printf("   (%02x %02x)\n", tag[0], tag[1]);
