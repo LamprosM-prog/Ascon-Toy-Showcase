@@ -45,6 +45,7 @@ static void print_bin(uint8_t v) {
 static void print_bits(unsigned v, int n) {
     for (int b = n - 1; b >= 0; b--) putchar('0' + ((v >> b) & 1));
 }
+static void print_bin_hex(uint8_t v) { print_bin(v); printf(" (%02x)", v); }
 static void print_xor(uint8_t a, uint8_t b) {
     print_bin_hex(a); printf("  ^  "); print_bin_hex(b); printf("  =  "); print_bin_hex((uint8_t)(a ^ b)); printf("\n");
 }
